@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10161d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Iron Log</title>
+<style>
+:root{--bg:#10161d;--card:#18212b;--tx:#e9eef3;--mu:#8a98a8;--bd:#263341;--ac:#4fc3b0;--on:#06211c;--hi:#f2c14e}
+@media(prefers-color-scheme:light){:root{--bg:#eef3f5;--card:#fff;--tx:#12202c;--mu:#5b6b7a;--bd:#d9e2e8;--ac:#12806f;--on:#fff;--hi:#a86b00}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;padding:env(safe-area-inset-top) 0 calc(140px + env(safe-area-inset-bottom))}
+main{max-width:640px;margin:auto;padding:12px}
+h1{font-size:22px;margin:6px 0}h3{font-size:16px;margin:0 0 4px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin:10px 0}
+.mu{color:var(--mu);font-size:13px}.hi{color:var(--hi)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--ac);color:var(--on);border:0;border-radius:10px;padding:10px 14px;font-weight:600}
+button.g{background:transparent;border:1px solid var(--bd);color:var(--tx);padding:8px 10px}
+input,select,textarea{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;width:100%}
+input[type=checkbox]{width:auto}
+label{display:block}label.row{display:flex}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.s{display:grid;grid-template-columns:22px 1fr 1fr 56px 46px;gap:6px;align-items:center;margin:6px 0}
+.s.d input{opacity:.55}
+.s .k{background:var(--bd);color:var(--tx);padding:9px 0}.s .k.on{background:var(--ac);color:var(--on)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;color:var(--mu);border-radius:0;padding:14px 0}nav button.on{color:var(--ac)}
+#rest{position:fixed;left:8px;right:8px;bottom:calc(58px + env(safe-area-inset-bottom));background:var(--ac);color:var(--on);border-radius:14px;padding:10px 12px;display:none;align-items:center;justify-content:space-between}
+#rest button{background:#0003;color:inherit;padding:8px 10px}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:14px;width:min(92vw,420px)}
+summary{cursor:pointer}
+</style></head>
+<body>
+<main id="app"></main>
+<div id="rest"><b id="rt" style="font-size:28px"></b><span class="row"><button onclick="adj(-15)">−15</button><button onclick="adj(15)">+15</button><button onclick="rest=null">Skip</button></span></div>
+<nav><button data-v="td" onclick="V='td';render()">Train</button><button data-v="h" onclick="V='h';render()">History</button><button data-v="s" onclick="V='s';render()">Settings</button></nav>
+<dialog id="dlg"><h3>Weight calculator</h3>
+<div class="row"><label style="flex:1">Target kg<input id="tw" type="number" inputmode="decimal" step="any" oninput="cc()"></label><label style="flex:1">Bar kg<input id="bw" type="number" inputmode="decimal" step="any" oninput="cc()"></label></div>
+<label>Plates you have (kg)<input id="pl" oninput="cc()"></label>
+<div id="co"></div><button class="g" onclick="$('#dlg').close()">Close</button></dialog>
+<script>
+const $=s=>document.querySelector(s),K='ironlog.v1';
+const num=v=>{v=parseFloat(String(v).replace(',','.'));return isNaN(v)?0:v};
+const fmt=w=>+(+w).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>new Date().toLocaleDateString('sv'),mmss=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const rng=r=>{const m=String(r).match(/(\d+)\D+(\d+)/);return m?[+m[1],+m[2]]:[+r||1,+r||1]};
+const T=a=>({id:a[0],name:a[1],category:a[2],sets:a[3],reps:a[4],rest:a[5],initialLoad:a[6],increment:a[7],swap:a[8],cue:''});
+// Default program = your exported A/B/C. Day D is my own addition for the 4-day option.
+const P0=[
+{id:'A',name:'Pause strength',focus:'Paused bench · legs · arms',warmup:['5 min easy row or bike','Shoulder CARs ×5/side','Bodyweight squat ×10','2–3 bench ramp sets'],exercises:[
+['a-jump','Box Jump','power',3,'3',75,0,0,'Fast bodyweight squat'],['a-bench','Paused Barbell Bench Press','strength',5,'4-5',180,35,2.5,'Chest Press Machine'],['a-row','Seated Cable Row','strength',4,'6-8',150,55,5,'Chest-Supported DB Row'],['a-leg','Leg Press','strength',3,'6-8',150,120,5,'Goblet Squat'],['a-abs','Cable Crunch','hypertrophy',3,'8-12',75,17.5,2.5,'Machine Crunch'],['a-ohp','Dumbbell Shoulder Press','hypertrophy',3,'6-8',120,12.5,2.5,'Machine Shoulder Press'],['a-curl','EZ-Bar Curl','hypertrophy',3,'8-12',90,15,2.5,'Cable Curl'],['a-tri','Triceps Pushdown','hypertrophy',3,'10-12',90,22.5,2.5,'Overhead Cable Triceps Extension']].map(T)},
+{id:'B',name:'Pull + speed',focus:'Vertical pull · squat · arms',warmup:['5 min incline walk','Dead hang ×20 sec','Hip 90/90 switches ×8','2 lat-pulldown ramp sets'],exercises:[
+['b-jump','Countermovement Jump','power',3,'3',75,0,0,'Fast bodyweight squat'],['b-lat','Neutral-Grip Lat Pulldown','strength',4,'5-7',180,60,5,'Assisted Pull-Up'],['b-goblet','Tempo Goblet Squat','strength',3,'6-8',150,17.5,2.5,'Leg Press'],['b-abs',"Captain's-Chair Knee Raise",'hypertrophy',3,'10-15',75,0,1,'Reverse Crunch'],['b-incline','Incline DB Press','hypertrophy',3,'8-10',120,15,2.5,'Incline Chest Machine'],['b-dbrow','Seated Cable Row','strength',4,'6-8',150,55,5,'Single-Arm Cable Row'],['b-lateral','Dumbbell Lateral Raise','hypertrophy',3,'12-15',75,7.5,1,'Cable Lateral Raise'],['b-hammer','Hammer Curl','hypertrophy',3,'8-12',75,7.5,2.5,'Rope Hammer Curl'],['b-tri','Triceps Pushdown','hypertrophy',3,'10-12',90,22.5,2.5,'Overhead Cable Triceps Extension']].map(T)},
+{id:'C',name:'Volume + arms',focus:'Close-grip press · glutes · arms',warmup:['5 min easy cycle','Ankle rocks ×10/side','Glute bridge ×12','2 bench ramp sets'],exercises:[
+['c-broad','Standing Broad Jump','power',4,'2',75,0,0,'Low box jump'],['c-bench','Close-Grip Bench Press','strength',4,'6-8',150,32.5,2.5,'Chest Press Machine'],['c-hip','Cable Pull-Through','strength',4,'8-12',120,25,5,'Hip Thrust'],['c-abs','Cable Crunch','hypertrophy',3,'10-15',75,15,2.5,'Reverse Crunch'],['c-lat','Lat Pulldown','hypertrophy',3,'8-10',120,55,5,'Chest-Supported DB Row'],['c-legcurl','Leg Curl','hypertrophy',3,'10-12',105,45,5,'Glute Bridge'],['c-chest','Chest Press Machine','hypertrophy',2,'10-12',105,35,5,'Cable Fly'],['c-lateral','Dumbbell Lateral Raise','hypertrophy',3,'12-15',75,7.5,1,'Cable Lateral Raise'],['c-curl','Preacher Curl','hypertrophy',3,'10-12',90,17.5,2.5,'Cable Curl'],['c-tri','Triceps Pushdown','hypertrophy',3,'10-12',90,22.5,2.5,'Single-Arm Cable Pushdown']].map(T)},
+{id:'D',name:'Arms + shoulders + abs',focus:'Dumbbell-based upper day',warmup:['5 min easy cycle','Shoulder CARs ×5/side','2 light press ramp sets'],exercises:[
+['d-incline','Incline DB Press','strength',4,'6-10',120,15,2.5,'Incline Chest Machine'],['d-ohp','Dumbbell Shoulder Press','strength',3,'6-8',120,12.5,2.5,'Machine Shoulder Press'],['d-lateral','Dumbbell Lateral Raise','hypertrophy',4,'12-15',75,7.5,1,'Cable Lateral Raise'],['d-curl','EZ-Bar Curl','hypertrophy',3,'8-12',90,15,2.5,'Cable Curl'],['d-tri','Triceps Pushdown','hypertrophy',3,'10-12',90,22.5,2.5,'Overhead Cable Triceps Extension'],['d-abs','Cable Crunch','hypertrophy',3,'10-15',75,17.5,2.5,'Reverse Crunch']].map(T)}];
+
+let S;try{S=JSON.parse(localStorage.getItem(K))}catch(e){}
+S=S||{cfg:{},program:P0,sessions:[],draft:null};
+S.cfg={days:3,bar:20,pl:'25,20,15,10,5,2.5,1.25',restOn:true,rem:false,time:'21:00',wd:[],...S.cfg};
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}};
+const sortS=()=>S.sessions.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.id<b.id?-1:1);
+sortS();let V='td',rest=null,AC,WL;
+
+// ---- progression logic (double progression; a heuristic, not a guarantee) ----
+function hs(n){n=n.toLowerCase();for(let i=S.sessions.length-1;i>=0;i--){const e=(S.sessions[i].exercises||[]).find(x=>x.name.toLowerCase()===n&&x.sets.some(s=>s.r>0));if(e)return e}return null}
+function sug(x,nm){const h=hs(nm),[lo,hi]=rng(x.reps),inc=x.increment||0;
+ if(!h)return nm===x.name&&x.initialLoad?{w:x.initialLoad,why:'program starting load'}:null;
+ const ss=h.sets.filter(s=>s.r>0),ok=ss.filter(s=>s.r>=lo),W=ok.length?Math.max(...ok.map(s=>s.w)):Math.min(...ss.map(s=>s.w)),at=ss.filter(s=>s.w===W);
+ if(!ok.length&&inc)return{w:Math.max(0,W-inc),why:`last time reps stayed under ${lo} at ${fmt(W)}, so step back`};
+ if(inc&&at.every(s=>s.r>=hi&&(s.rir==null||s.rir>=1)))return{w:W+inc,why:`you hit ${hi} reps on every set at ${fmt(W)}: +${inc}`};
+ return{w:W,why:`repeat ${fmt(W)} and aim for ${hi} reps on every set`}}
+const mk=(x,alt)=>{const sg=sug(x,alt?x.swap:x.name);return Array.from({length:x.sets},()=>({w:sg?String(fmt(sg.w)):'',r:String(rng(x.reps)[1]),rir:'',done:false}))};
+const dayList=()=>S.program.filter((p,i)=>S.cfg.days==4||i<3);
+const cur=()=>S.program.find(p=>p.id===S.draft.day);
+
+// ---- views ----
+function render(){$('#app').innerHTML=V=='h'?H():V=='s'?St():Td();document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v==V))}
+function Td(){const d=S.draft;
+ if(!d){const L=dayList(),ld=(S.sessions.at(-1)||{}).day,nx=L[(L.findIndex(p=>p.id==ld)+1)%L.length];
+  return'<h1>Choose today’s session</h1>'+L.map(p=>{const l=[...S.sessions].reverse().find(s=>s.day==p.id);
+   return`<div class="c"><h3>${esc(p.id)} · ${esc(p.name)} ${p===nx?'<span class="hi">· next in rotation</span>':''}</h3><div class="mu">${esc(p.focus)} · ${p.exercises.length} exercises · last done: ${l?l.date:'never'}</div><div class="row" style="margin-top:8px"><button onclick="go('${esc(p.id)}')">Start session</button></div></div>`}).join('')}
+ const p=cur();if(!p){S.draft=null;save();return Td()}
+ return`<div class="row"><h1 style="flex:1">${esc(p.id)} · ${esc(p.name)}</h1><b id="el"></b></div>
+ <details class="c"><summary>Warm-up</summary>${(p.warmup||[]).map(w=>'<div>• '+esc(w)+'</div>').join('')}</details>`
+ +p.exercises.map((x,i)=>X(x,i,d.ex[i])).join('')
+ +`<textarea id="notes" rows="2" placeholder="Session notes (optional)" oninput="S.draft.notes=this.value;save()">${esc(d.notes||'')}</textarea>
+ <div class="row" style="margin-top:10px"><button onclick="fin()">Finish &amp; save</button><button class="g" onclick="if(confirm('Discard this session?')){S.draft=null;save();render()}">Discard</button></div>`}
+function X(x,i,e){if(!e)return'';const nm=e.alt?x.swap:x.name,sg=sug(x,nm);
+ return`<div class="c" style="${e.skip?'opacity:.55':''}"><h3>${esc(nm)}</h3>
+ <div class="mu">${x.sets} × ${esc(x.reps)} · rest ${x.rest}s${x.cue?' · '+esc(x.cue):''}</div>
+ <div class="mu">${sg?`Suggested: <b class="hi">${fmt(sg.w)} kg</b> (${esc(sg.why)})`:'No history for this exercise yet: start light and log it.'}</div>
+ <div class="row" style="margin:8px 0"><button class="g" onclick="sw(${i})">${e.alt?'↩ Back to '+esc(x.name):'⇄ Swap: '+esc(x.swap)}</button><button class="g" onclick="sk(${i})">${e.skip?'Unskip':'Skip'}</button><button class="g" onclick="calc(${i})">Plates</button></div>`
+ +(e.skip?'':e.sets.map((s,j)=>`<div class="s ${s.done?'d':''}"><span class="mu">${j+1}</span><input type="number" inputmode="decimal" step="any" placeholder="kg" value="${esc(s.w)}" oninput="U(${i},${j},'w',this.value)"><input type="number" inputmode="numeric" placeholder="reps" value="${esc(s.r)}" oninput="U(${i},${j},'r',this.value)"><input type="number" inputmode="numeric" placeholder="RIR" value="${esc(s.rir)}" oninput="U(${i},${j},'rir',this.value)"><button class="k ${s.done?'on':''}" onclick="D(${i},${j})">✓</button></div>`).join('')+`<button class="g" onclick="AS(${i})">+ set</button>`)+'</div>'}
+function H(){const rec={};S.sessions.forEach(s=>(s.exercises||[]).forEach(e=>e.sets.forEach(t=>{if(t.w>0&&t.r>0&&t.r<=10){const m=t.w*(1+t.r/30);if(!(rec[e.name]>=m))rec[e.name]=m}})));
+ const top=Object.entries(rec).sort((a,b)=>b[1]-a[1]).slice(0,10);
+ return`<h1>History</h1>`+(top.length?`<div class="c"><h3>Best estimated 1RM</h3>${top.map(([n,m])=>`<div class="row"><span style="flex:1">${esc(n)}</span><b>${fmt(Math.round(m*10)/10)} kg</b></div>`).join('')}<div class="mu">Epley estimate from sets of 10 reps or fewer. Treat it as a rough guide.</div></div>`:'')
+ +(S.sessions.length?[...S.sessions].reverse().map(s=>`<details class="c"><summary><b>${esc(s.date)} · Day ${esc(s.day)}</b><div class="mu">${s.sets} sets · ${s.reps} reps · ${s.vol} kg volume · ${s.mins} min</div></summary>${(s.exercises||[]).map(e=>`<div><b>${esc(e.name)}</b>: ${e.sets.map(t=>fmt(t.w)+'×'+t.r).join(', ')}</div>`).join('')}${s.notes?`<p class="mu">${esc(s.notes)}</p>`:''}</details>`).join(''):'<div class="c">No sessions yet. Finish a workout or import a JSON file in Settings.</div>')}
+function St(){const c=S.cfg;
+ return`<h1>Settings</h1><div class="c"><label>Days per week<select onchange="C('days',+this.value)">${[3,4].map(n=>`<option ${c.days==n?'selected':''}>${n}</option>`).join('')}</select></label><p class="mu">4 days adds Day D (arms, shoulders, abs), which I added myself. It is not from your export.</p>
+ <label class="row"><input type="checkbox" ${c.restOn?'checked':''} onchange="C('restOn',this.checked)">Start the rest timer when I tick a set</label></div>
+ <div class="c"><h3>Reminders</h3><label class="row"><input type="checkbox" ${c.rem?'checked':''} onchange="C('rem',this.checked)">Remind me on these days</label>
+ <div class="row" style="margin:6px 0">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((n,i)=>`<label class="row" style="gap:3px"><input type="checkbox" ${c.wd.includes(i)?'checked':''} onchange="WD(${i},this.checked)">${n}</label>`).join('')}</div>
+ <label>Time<input type="time" value="${esc(c.time)}" onchange="C('time',this.value)"></label>
+ <div class="row" style="margin-top:8px"><button class="g" onclick="perm()">Allow notifications</button><button class="g" onclick="beep();ntf('Test','Notifications work')">Test</button></div>
+ <p class="mu">Reminders and rest alarms only fire while the app is open or still running in the background. There is no server, so nothing can wake a fully closed app.</p></div>
+ <div class="c"><h3>Data</h3><div class="row"><button onclick="$('#f').click()">Import JSON</button><button class="g" onclick="exp()">Export JSON</button><button class="g" onclick="if(confirm('Delete ALL data on this device?')){localStorage.removeItem(K);location.reload()}">Reset</button></div>
+ <input id="f" type="file" accept=".json,application/json" hidden onchange="imp(this.files[0]);this.value=''"><p class="mu">Data is stored only in this browser. Export regularly as a backup.</p></div>`}
+
+// ---- actions ----
+const C=(k,v)=>{S.cfg[k]=v;save()};
+const WD=(i,on)=>{const w=S.cfg.wd.filter(x=>x!=i);if(on)w.push(i);C('wd',w)};
+function go(id){const p=S.program.find(x=>x.id==id);S.draft={day:id,date:today(),start:Date.now(),notes:'',ex:p.exercises.map(x=>({alt:false,skip:false,sets:mk(x,false)}))};save();wl();render()}
+function U(i,j,k,v){S.draft.ex[i].sets[j][k]=v;save()}
+function D(i,j){const s=S.draft.ex[i].sets[j];s.done=!s.done;if(s.done&&S.cfg.restOn){const r=cur().exercises[i].rest;if(r)rest={end:Date.now()+r*1000,f:0}}save();render()}
+function sw(i){const e=S.draft.ex[i],x=cur().exercises[i];if(e.sets.some(s=>s.done)&&!confirm('This clears the sets you logged for this exercise. Continue?'))return;e.alt=!e.alt;e.sets=mk(x,e.alt);save();render()}
+function sk(i){const e=S.draft.ex[i];e.skip=!e.skip;save();render()}
+function AS(i){const a=S.draft.ex[i].sets,l=a.at(-1)||{w:'',r:'',rir:''};a.push({w:l.w,r:l.r,rir:'',done:false});save();render()}
+function fin(){const d=S.draft,p=cur(),exs=[];let vol=0,sets=0,reps=0;
+ d.ex.forEach((e,i)=>{if(e.skip)return;const x=p.exercises[i],ss=e.sets.filter(s=>s.done&&num(s.r)>0).map(s=>({w:num(s.w),r:num(s.r),rir:s.rir===''?null:num(s.rir)}));if(!ss.length)return;ss.forEach(s=>{vol+=s.w*s.r;sets++;reps+=s.r});exs.push({id:x.id,name:e.alt?x.swap:x.name,sets:ss})});
+ if(!exs.length){alert('Tick at least one set (✓) before saving.');return}
+ S.sessions.push({id:`${d.date}-${d.day}-${Date.now()}`,date:d.date,day:d.day,vol:Math.round(vol),sets,reps,mins:Math.round((Date.now()-d.start)/60000),notes:d.notes||'',readiness:null,exercises:exs});
+ sortS();S.draft=null;rest=null;save();V='h';render()}
+function calc(i){const e=S.draft.ex[i];$('#tw').value=num(e.sets[0]?.w)||'';$('#bw').value=S.cfg.bar;$('#pl').value=S.cfg.pl;cc();$('#dlg').showModal()}
+function cc(){const t=num($('#tw').value),b=num($('#bw').value),pl=$('#pl').value.split(',').map(num).filter(x=>x>0).sort((a,b)=>b-a);S.cfg.bar=b;S.cfg.pl=$('#pl').value;save();
+ const one=w=>{let r=(w-b)/2;if(r<0)return'below bar weight';const o=[];for(const p of pl){const n=Math.floor(r/p+1e-9);if(n){o.push(n+'×'+p);r-=n*p}}return(o.join(' + ')||'bar only')+(r>.01?` (closest loadable: ${fmt(w-2*r)} kg)`:'')},rd=w=>Math.round(w/2.5)*2.5;
+ $('#co').innerHTML=t?`<p><b>Per side for ${fmt(t)} kg:</b> ${one(t)}</p><p class="mu">Warm-up ramp (a common rule of thumb, adjust to feel):</p>`+[[.5,8],[.7,5],[.85,3]].map(([f,n])=>`<div>${n} × ${fmt(rd(t*f))} kg: ${one(rd(t*f))}</div>`).join(''):'<p class="mu">Enter a target weight.</p>'}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({version:5,exportedAt:new Date().toISOString(),profile:S.profile||{},sessions:S.sessions,program:S.program},null,1)],{type:'application/json'}));a.download=`ironlog-${today()}.json`;a.click()}
+function imp(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.sessions))throw new Error('no "sessions" list found');
+ const ids=new Set(S.sessions.map(s=>s.id));let n=0;d.sessions.forEach(s=>{if(s&&s.id&&s.date&&!ids.has(s.id)){s.exercises=s.exercises||[];S.sessions.push(s);ids.add(s.id);n++}});
+ let pm='';if(Array.isArray(d.program)&&d.program.length&&d.program.every(p=>p.id&&Array.isArray(p.exercises))&&confirm('Also replace your program with the one in this file? (OK = replace, Cancel = keep current)')){S.program=[...d.program.map(p=>({warmup:[],...p})),...S.program.filter(p=>!d.program.some(q=>q.id==p.id))];S.draft=null;pm=' Program replaced.'}
+ if(d.profile)S.profile=d.profile;sortS();save();render();alert(`Imported ${n} new session(s).${pm}`)}catch(e){alert('Could not import this file: '+e.message)}};r.readAsText(f)}
+
+// ---- timer, alarm, notifications ----
+const ac=()=>{try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume()}catch(e){}};document.addEventListener('click',ac);
+function beep(){try{ac();const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);o.frequency.value=880;g.gain.value=.2;o.start();o.stop(AC.currentTime+.4)}catch(e){}navigator.vibrate&&navigator.vibrate([200,100,200])}
+function ntf(t,b){if(!window.Notification||Notification.permission!=='granted')return;const o={body:b,tag:'ironlog',vibrate:[200,100,200],icon:'icon-192.png'},sw=navigator.serviceWorker;(sw?sw.ready.then(r=>r.showNotification(t,o)):Promise.reject()).catch(()=>{try{new Notification(t,o)}catch(e){}})}
+function perm(){if(!window.Notification)return alert('This browser does not support notifications. On iPhone, add the page to your Home Screen first.');Notification.requestPermission().then(p=>alert('Notification permission: '+p))}
+function adj(s){if(!rest)return;rest.end+=s*1000;rest.f=rest.end<=Date.now()?1:0}
+async function wl(){try{WL=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.draft)wl()});
+setInterval(()=>{const n=Date.now();
+ if(rest){const l=Math.ceil((rest.end-n)/1000);if(l>0)$('#rt').textContent=mmss(l);else{$('#rt').textContent='Go!';if(!rest.f){rest.f=1;beep();ntf('Rest over','Start your next set')}if(l<-10)rest=null}}
+ $('#rest').style.display=rest?'flex':'none';
+ if(S.draft&&$('#el'))$('#el').textContent=mmss((n-S.draft.start)/1000);
+ const d=new Date(),c=S.cfg;if(c.rem&&!S.draft&&c.wd.includes(d.getDay())&&S.lastRem!==today()&&!S.sessions.some(s=>s.date===today())&&d.toTimeString().slice(0,5)>=c.time){S.lastRem=today();save();ntf('Gym time','Open Iron Log and start today’s session.')}},500);
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+</script></body></html>
